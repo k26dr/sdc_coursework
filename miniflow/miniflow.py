@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 
 class Layer:
     def __init__(self, inbound_layers=[]):
@@ -17,11 +18,11 @@ class Layer:
         Complete the output value based on inbound_layers and 
         store the result in self.value
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def backward(self):
         "Backward Propagation"
-        raise NotImplemented
+        raise NotImplementedError
 
 class Input(Layer):
     def __init__(self):
@@ -118,6 +119,14 @@ class MSE(Layer):
          m = len(y)
          diff = y-a
          self.value = np.mean(diff**2)
+
+    def backward(self):
+        y = self.inbound_layers[0].value.reshape(-1, 1)
+        a = self.inbound_layers[1].value.reshape(-1, 1)
+        m = len(y)
+        diff = y-a
+        self.gradients[self.inbound_layers[0]] = (1/m) * (2*diff)
+        self.gradients[self.inbound_layers[1]] = (1/m) * (2*diff) * -1
 
 def topological_sort(feed_dict):
     input_layers = [n for n in feed_dict.keys()]
