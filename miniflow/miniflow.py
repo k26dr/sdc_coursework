@@ -31,6 +31,11 @@ class Input(Layer):
         if value:
             self.value = value
 
+    def backward(self):
+        self.gradients = { self: 0 }
+        for n in self.outbound_layers:
+            self.gradients[self] += n.gradients[self] * 1
+
 class Add(Layer):
     def __init__(self, *inputs):
         Layer.__init__(self, inputs)
@@ -42,7 +47,11 @@ class Add(Layer):
         self.value = sum
     
     def backward(self):
-        raise NotImplemented
+        self.gradients = {n: 0 for  n in self.inbound_layers}
+        for n  in self.outbound_layers:
+            for m in self.inbound_layers:
+                self.gradients[m] += n.gradients[self] * 1
+
 
 class Mult(Layer):
     def __init__(self, *inputs):
@@ -53,6 +62,15 @@ class Mult(Layer):
         for n in self.inbound_layers:
             product *= n.value
         self.value =  product
+
+    def backward(self):
+        self.gradients = {n: 0 for n in self.inbound_layers}
+        product = reduce(lambda x,y: x*y.value, self.inbound_layers)
+        for n  in self.outbound_layers:
+            for m in self.inbound_layers:
+                partial = product / m.value
+                self.gradients[m] += n.gradients[self] * partial
+    
 
 class Linear(Layer):
     def __init__(self, inbound_layer, weights, bias):
@@ -65,6 +83,19 @@ class Linear(Layer):
         W = self.inbound_layers[1].value
         b = self.inbound_layers[2].value
         self.value = X.dot(W) + b
+
+    def backward(self):
+        self.gradients = {n: np.zeroes_like(n.value) for n in self.inbound_layers}
+        X = self.inbound_layers[0].value
+        W = self.inbound_layers[1].value
+        b = self.inbound_layers[2].value
+
+        for n in self.outbound_layers:
+            grad_cost = n.gradients[self]
+            self.gradients[W] = np.dot(grad_cost, X)
+            self.gradients[X] = np.dot(grad_cost, W)
+            self.gradients[b] = np.sum(grad_cost)
+        
 
 class Sigmoid(Layer):
     def __init__(self, layer):
@@ -120,7 +151,9 @@ def topological_sort(feed_dict):
                 S.add(m)
     return L
 
-def forward_pass(output_layer, sorted_layers):
-    for n in sorted_layers:
+def forward_and_backward(graph):
+    for n in graph:
         n.forward()
-    return output_layer.value
+
+    for n in graph[::-1]:
+        n.backward()
