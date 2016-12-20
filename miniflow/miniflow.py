@@ -86,16 +86,16 @@ class Linear(Layer):
         self.value = X.dot(W) + b
 
     def backward(self):
-        self.gradients = {n: np.zeroes_like(n.value) for n in self.inbound_layers}
+        self.gradients = {n: np.zeros_like(n.value) for n in self.inbound_layers}
         X = self.inbound_layers[0].value
         W = self.inbound_layers[1].value
         b = self.inbound_layers[2].value
 
         for n in self.outbound_layers:
             grad_cost = n.gradients[self]
-            self.gradients[W] = np.dot(grad_cost, X)
-            self.gradients[X] = np.dot(grad_cost, W)
-            self.gradients[b] = np.sum(grad_cost)
+            self.gradients[self.inbound_layers[0]] = np.dot(grad_cost, W.T)
+            self.gradients[self.inbound_layers[1]] = np.dot(X.T, grad_cost)
+            self.gradients[self.inbound_layers[2]] = np.sum(grad_cost, axis=0)
         
 
 class Sigmoid(Layer):
@@ -108,6 +108,14 @@ class Sigmoid(Layer):
     def forward(self):
         X = self.inbound_layers[0].value
         self.value = self._sigmoid(X)
+
+    def backward(self):
+        self.gradients = {n: np.zeros_like(n.value) for n in self.inbound_layers}
+        X = self.inbound_layers[0].value
+        partial = self._sigmoid(X) * (1 - self._sigmoid(X))
+        
+        for n in self.outbound_layers:
+            self.gradients[self.inbound_layers[0]] += partial * n.gradients[self]
 
 class MSE(Layer):
     def __init__(self, y, a):
@@ -166,3 +174,7 @@ def forward_and_backward(graph):
 
     for n in graph[::-1]:
         n.backward()
+
+def sgd_update(trainables, learning_rate=1e-2):
+    for t in trainables:
+        t.value = t.value - learning_rate * t.gradients[t]
